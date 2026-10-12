@@ -439,6 +439,8 @@ export default function EquiPayApp({ view = 'dashboard' }: { view?: 'dashboard' 
                 members={state.members}
                 expenses={state.expenses}
                 currentUser={currentUser}
+                paidDebts={state.paidDebts || {}}
+                onTogglePaid={handleTogglePaid}
                 onNavigateToPayment={() => setActiveTab('PAYMENT')}
               />
             )}
