@@ -1,13 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import {
-  DebtPayment,
-  Expense,
-  GroupState,
-  Member,
-  UserAccount,
-} from '@/types';
+import { DebtPayment, Expense, Member, UserAccount } from '@/types';
 import { calculatePairwiseDebts, formatVND } from '@/lib/settlement-algorithm';
 import { generateVietQRUrl, generateTransferDescription } from '@/lib/vietqr';
 import { POPULAR_BANK_APPS, openBankingApp } from '@/lib/bank-deeplinks';
@@ -31,8 +25,6 @@ interface DebtsTabProps {
   members: Member[];
   expenses: Expense[];
   currentUser: UserAccount | null;
-  paidDebts: GroupState['paidDebts'];
-  onTogglePaid: (debt: DebtPayment) => void;
   onNavigateToPayment: () => void;
 }
 
@@ -40,8 +32,6 @@ export const DebtsTab: React.FC<DebtsTabProps> = ({
   members,
   expenses,
   currentUser,
-  paidDebts,
-  onTogglePaid,
   onNavigateToPayment,
 }) => {
   const currentMemberId = currentUser?.memberId;
@@ -219,30 +209,19 @@ export const DebtsTab: React.FC<DebtsTabProps> = ({
             const fromMem = memberMap.get(debt.fromMemberId);
             const toMem = memberMap.get(debt.toMemberId);
             const isExpanded = expandedDebtId === debt.id;
-            
-            // Chỉ xem là đã trả nếu số tiền được đánh dấu khớp với khoản nợ hiện tại.
-            const isPaid = paidDebts?.[debt.id]?.amount === debt.amount;
 
             return (
               <div
-              key={debt.id}
-              className={`bg-slate-900/90 border rounded-2xl p-4 transition text-slate-100 shadow-sm ${
-                isPaid
-                  ? 'border-emerald-500/30 opacity-60'
-                  : 'border-slate-800 hover:border-slate-700/80'
-              }`}
-            >
+                key={debt.id}
+                className="bg-slate-900/90 border border-slate-800 hover:border-slate-700/80 rounded-2xl p-4 transition text-slate-100 shadow-sm"
+              >
                 {/* Header row */}
                 <div className="flex items-center justify-between gap-2 mb-3">
                   <div className="flex items-center gap-2 min-w-0">
                     <div className="flex items-center gap-1.5 min-w-0">
                       <span className="text-base">{fromMem?.avatar}</span>
                       <div>
-                        <span
-                          className={`font-bold text-xs sm:text-sm block truncate ${
-                            isPaid ? 'line-through text-slate-500' : 'text-slate-200'
-                          }`}
-                        >
+                        <span className="font-bold text-slate-200 text-xs sm:text-sm block truncate">
                           {fromMem?.name}
                         </span>
                         <span className="text-[10px] text-rose-400 font-medium">Người trả tiền</span>
@@ -256,11 +235,7 @@ export const DebtsTab: React.FC<DebtsTabProps> = ({
                     <div className="flex items-center gap-1.5 min-w-0">
                       <span className="text-base">{toMem?.avatar}</span>
                       <div>
-                        <span
-                          className={`font-bold text-xs sm:text-sm block truncate ${
-                            isPaid ? 'line-through text-slate-500' : 'text-emerald-300'
-                          }`}
-                        >
+                        <span className="font-bold text-emerald-300 text-xs sm:text-sm block truncate">
                           {toMem?.name}
                         </span>
                         <span className="text-[10px] text-emerald-400 font-medium">Người nhận tiền</span>
@@ -269,34 +244,12 @@ export const DebtsTab: React.FC<DebtsTabProps> = ({
                   </div>
 
                   <div className="text-right shrink-0">
-                    <span
-                      className={`text-base sm:text-lg font-black font-mono ${
-                        isPaid
-                          ? 'line-through text-slate-500'
-                          : 'text-amber-400'
-                      }`}
-                    >
+                    <span className="text-base sm:text-lg font-black text-amber-400 font-mono">
                       {formatVND(debt.amount)}
                     </span>
                   </div>
                 </div>
 
-                {/* Trạng thái thanh toán */}
-              <div className="mb-3 flex justify-end">
-                <button
-                  type="button"
-                  onClick={() => onTogglePaid(debt)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
-                    isPaid
-                      ? 'bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700'
-                      : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/20'
-                  }`}
-                >
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                  {isPaid ? 'Đã trả nợ · Hoàn tác' : 'Đánh dấu đã trả nợ'}
-                </button>
-              </div>
-                
                 {/* Bank Preview & Quick Actions */}
                 <div className="bg-slate-950/80 rounded-xl p-3 border border-slate-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs">
                   <div className="space-y-0.5 min-w-0">
