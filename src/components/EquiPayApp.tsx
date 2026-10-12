@@ -62,52 +62,25 @@ export default function EquiPayApp({ view = 'dashboard' }: { view?: 'dashboard' 
     setTimeout(() => setToastMessage(null), 3000);
   }, []);
 
-  // Nâng cấp tài khoản cũ theo danh sách 4 thành viên mà không đụng đến chi tiêu/lịch sử.
-  // Việc chuẩn hóa được áp dụng cho cả snapshot local và snapshot Supabase khi tải dữ liệu.
+  // Tự động kiểm tra và nâng cấp băm mật khẩu SHA-256 cho các tài khoản cũ (tránh lưu text)
   const ensureHashedUsers = useCallback(async (targetState: GroupState): Promise<GroupState> => {
-    const desired = [
-      { username: 'nhi', displayName: 'Nhi', memberId: 'mem_1', role: 'ADMIN' as const, hash: '45f84b5b6ac050493b22e1aa74d177737b08a97608607b15ddf45df630da5754' },
-      { username: 'zang', displayName: 'Zang', memberId: 'mem_2', role: 'MEMBER' as const, hash: '6d2be5590cf9c4bf0f0f1c6a283ed66e10bd0653c9707b5249865c5006595d89' },
-      { username: 'tuyen', displayName: 'Tuyền', memberId: 'mem_3', role: 'MEMBER' as const, hash: '87afbcf24167e0141be6f9a1f37b46020d8af117b0e80aae15b301ad3736718c' },
-      { username: 'vy', displayName: 'Vy', memberId: 'mem_4', role: 'MEMBER' as const, hash: 'af9f6231db518ef7a1f7becafba572eaae99158d2994ddaa0bbcd3836017cf65' },
-    ];
-    const oldUsers = targetState.users || [];
-    const usedIds = new Set<string>();
-    const managedUsers: UserAccount[] = await Promise.all(desired.map(async (item, index) => {
-      const existing = oldUsers.find((u) =>
-        index === 0
-          ? (u.id === 'usr_admin' || u.username.toLowerCase() === 'admin' || u.username.toLowerCase() === 'nhi' || (u.role === 'ADMIN' && u.memberId === 'mem_1'))
-          : (u.memberId === item.memberId || u.username.toLowerCase() === item.username)
-      );
-      const id = existing?.id || (index === 0 ? 'usr_admin' : `usr_${item.username}`);
-      usedIds.add(id);
-      const shouldResetInitialPassword = !existing || existing.username.toLowerCase() !== item.username;
-      const password = shouldResetInitialPassword
-        ? item.hash
-        : (existing && isPasswordHashed(existing.password) ? existing.password : await hashPassword(existing?.password || ''));
-      return {
-        ...(existing || {} as UserAccount),
-        id,
-        username: item.username,
-        password,
-        displayName: item.displayName,
-        role: item.role,
-        memberId: item.memberId,
-        createdAt: existing?.createdAt || new Date().toISOString(),
-      };
-    }));
-    const otherUsers = oldUsers.filter((u) => !usedIds.has(u.id) &&
-      !['admin', 'nhi', 'zang', 'tuyen', 'vy'].includes(u.username.toLowerCase()) &&
-      !['mem_1', 'mem_2', 'mem_3', 'mem_4'].includes(u.memberId || '')
+    if (!targetState.users || targetState.users.length === 0) return targetState;
+    let hasUnhashed = false;
+    const upgradedUsers = await Promise.all(
+      targetState.users.map(async (u) => {
+        if (!isPasswordHashed(u.password)) {
+          hasUnhashed = true;
+          const hashed = await hashPassword(u.password);
+          return { ...u, password: hashed };
+        }
+        return u;
+      })
     );
-    const wantedNames: Record<string, string> = { mem_1: 'Nhi', mem_2: 'Zang', mem_3: 'Tuyền', mem_4: 'Vy' };
-    const members = (targetState.members || []).map((member) =>
-      wantedNames[member.id] ? { ...member, name: wantedNames[member.id], isAdmin: member.id === 'mem_1' } : member
-    );
-    const nextState: GroupState = { ...targetState, members, users: [...managedUsers, ...otherUsers] };
-    const changed = JSON.stringify(nextState.members) !== JSON.stringify(targetState.members) ||
-      JSON.stringify(nextState.users) !== JSON.stringify(targetState.users || []);
-    return changed ? nextState : targetState;
+    if (hasUnhashed) {
+      const nextState = { ...targetState, users: upgradedUsers };
+      return nextState;
+    }
+    return targetState;
   }, []);
 
   const syncState = useCallback(async (newState: GroupState, revision: number) => {
@@ -155,27 +128,7 @@ export default function EquiPayApp({ view = 'dashboard' }: { view?: 'dashboard' 
     // Retry local changes before accepting an older cloud snapshot.
     const refreshCloud = async () => {
       if (hasPendingSync()) {
-        // Local pending changes are authoritative; migrate them before retrying the cloud write.
-        const pendingState = stateRef.current;
-        const migratedPending = await ensureHashedUsers(pendingState);
-        if (disposed) return;
-        if (migratedPending !== pendingState) {
-          stateRef.current = migratedPending;
-          setState(migratedPending);
-          saveState(migratedPending);
-          const active = getCurrentUser();
-          if (active) {
-            const migratedActive = migratedPending.users.find((u) => u.id === active.id) ||
-              (active.username.toLowerCase() === 'admin' ? migratedPending.users.find((u) => u.username === 'nhi') : undefined);
-            if (migratedActive) {
-              setCurrentUser(migratedActive);
-              setCurrentUserState(migratedActive);
-            }
-          }
-          await syncState(migratedPending, localRevision.current);
-        } else {
-          await syncState(pendingState, localRevision.current);
-        }
+        await syncState(stateRef.current, localRevision.current);
         return;
       }
       const revision = localRevision.current;
@@ -188,15 +141,6 @@ export default function EquiPayApp({ view = 'dashboard' }: { view?: 'dashboard' 
         stateRef.current = nextState;
         setState(nextState);
         saveState(nextState);
-        const active = getCurrentUser();
-        if (active) {
-          const migratedActive = nextState.users.find((u) => u.id === active.id) ||
-            (active.username.toLowerCase() === 'admin' ? nextState.users.find((u) => u.username === 'nhi') : undefined);
-          if (migratedActive) {
-            setCurrentUser(migratedActive);
-            setCurrentUserState(migratedActive);
-          }
-        }
         if (!res.error && (nextState !== sourceState || !res.state)) updateState(nextState);
       }
     };
@@ -439,8 +383,6 @@ export default function EquiPayApp({ view = 'dashboard' }: { view?: 'dashboard' 
                 members={state.members}
                 expenses={state.expenses}
                 currentUser={currentUser}
-                paidDebts={state.paidDebts || {}}
-                onTogglePaid={handleTogglePaid}
                 onNavigateToPayment={() => setActiveTab('PAYMENT')}
               />
             )}
