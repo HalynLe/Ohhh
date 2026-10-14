@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useState } from 'react';
-import { DebtPayment, Expense, Member, UserAccount } from '@/types';
-import { calculatePairwiseDebts, formatVND } from '@/lib/settlement-algorithm';
+import { CarriedDebt, RecordedPayment, DebtPayment, Expense, Member, UserAccount } from '@/types';
+import { calculateDebtsByMode, formatVND } from '@/lib/settlement-algorithm';
 import { generateVietQRUrl, generateTransferDescription } from '@/lib/vietqr';
 import { POPULAR_BANK_APPS, openBankingApp } from '@/lib/bank-deeplinks';
 import {
@@ -24,15 +24,23 @@ import {
 interface DebtsTabProps {
   members: Member[];
   expenses: Expense[];
+  payments?: RecordedPayment[];
+  carriedDebts?: CarriedDebt[];
+  settlementMode?: 'PAIRWISE' | 'OPTIMAL';
   currentUser: UserAccount | null;
   onNavigateToPayment: () => void;
+  onMarkPaid: (debt: DebtPayment) => void;
 }
 
 export const DebtsTab: React.FC<DebtsTabProps> = ({
   members,
   expenses,
+  payments = [],
+  carriedDebts = [],
+  settlementMode,
   currentUser,
   onNavigateToPayment,
+  onMarkPaid,
 }) => {
   const currentMemberId = currentUser?.memberId;
   const memberMap = new Map(members.map((m) => [m.id, m]));
@@ -46,7 +54,7 @@ export const DebtsTab: React.FC<DebtsTabProps> = ({
   const [selectedQRDebt, setSelectedQRDebt] = useState<DebtPayment | null>(null);
   const [copiedStkId, setCopiedStkId] = useState<string | null>(null);
 
-  const debts = calculatePairwiseDebts(members, expenses);
+  const debts = calculateDebtsByMode(members, expenses, settlementMode, payments, carriedDebts);
 
   // Các khoản tài khoản này cần trả
   const myDebtsToPay = currentMemberId
@@ -288,6 +296,10 @@ export const DebtsTab: React.FC<DebtsTabProps> = ({
                       </button>
                     )}
 
+                    <button type="button" onClick={() => onMarkPaid(debt)}
+                      className="py-1.5 px-3 rounded-lg bg-teal-500/20 text-teal-300 font-bold text-xs">
+                      Đã trả · Chốt khoản này
+                    </button>
                     {/* Show VietQR Modal right here */}
                     <button
                       onClick={() => setSelectedQRDebt(debt)}
