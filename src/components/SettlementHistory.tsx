@@ -1,9 +1,10 @@
 'use client';
 
+import { PaymentHistory } from '@/components/PaymentHistory';
 import { useState } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, ArrowRight, CalendarDays, History, ChevronDown } from 'lucide-react';
-import { Member, SettlementPeriod } from '@/types';
+import { Member, SettlementPeriod, RecordedPayment } from '@/types';
 import { formatVND } from '@/lib/settlement-algorithm';
 
 const dateOptions = { timeZone: 'Asia/Ho_Chi_Minh' };
@@ -19,7 +20,7 @@ function monthOf(period: SettlementPeriod) {
   return `${parts.find((part) => part.type === 'month')?.value}/${parts.find((part) => part.type === 'year')?.value}`;
 }
 
-export function SettlementHistory({ history, members }: { history: SettlementPeriod[]; members: Member[] }) {
+export function SettlementHistory({ history, members, payments = [], onUndoPayment }: { history: SettlementPeriod[]; members: Member[]; payments?: RecordedPayment[]; onUndoPayment?: (id: string) => void }) {
   const [selectedMonth, setSelectedMonth] = useState('ALL');
   const sorted = [...history].sort((a, b) =>
     (Date.parse(b.settledAt || b.endDate) || 0) - (Date.parse(a.settledAt || a.endDate) || 0)
@@ -63,6 +64,9 @@ export function SettlementHistory({ history, members }: { history: SettlementPer
         </div>
       </div>
 
+      <PaymentHistory payments={payments} members={members} onUndoPayment={onUndoPayment} />
+      <p className="text-xs text-slate-500">Các kỳ đã chốt bên dưới chỉ dùng để xem lại. Hoàn tác đã trả áp dụng cho kỳ hiện tại.</p>
+
       {visible.length === 0 ? (
         <div className="rounded-3xl border border-dashed border-slate-700 p-10 text-center">
           <CalendarDays className="w-10 h-10 text-slate-500 mx-auto mb-4" />
@@ -105,12 +109,17 @@ export function SettlementHistory({ history, members }: { history: SettlementPer
                   </div>
                   <div>
                     <h4 className="font-bold text-sm mb-3">Công nợ khi chốt ({period.debts.length})</h4>
+                    {period.carriedDebts && <p className="text-xs text-amber-300 mb-3">Đã chuyển sang kỳ sau: {formatVND(period.carriedDebts.reduce((sum, debt) => sum + debt.amount, 0))}. Đây là số dư tại lúc chốt; thanh toán tiếp theo được ghi ở kỳ mới.</p>}
+                    {period.openingDebts && period.openingDebts.length > 0 && <details className="mb-3 text-xs text-slate-400">
+                      <summary className="cursor-pointer">Nợ đầu kỳ và nguồn chuyển tiếp</summary>
+                      {period.openingDebts.map((debt) => <p key={debt.id} className="mt-2">{nameOf(debt.fromMemberId)} → {nameOf(debt.toMemberId)}: {formatVND(debt.amount)} · {debt.sources.map((source) => source.title).join(', ')}</p>)}
+                    </details>}
                     {period.debts.length === 0 && <p className="text-sm text-slate-500">Không có công nợ cần chuyển trả.</p>}
                     <ul className="space-y-2">
                       {period.debts.map((debt) => (
                         <li key={debt.id} className="rounded-xl bg-slate-950 p-3 text-sm space-y-2">
                           <div className="flex flex-wrap items-center gap-2"><span>{nameOf(debt.fromMemberId)}</span><ArrowRight className="w-3 h-3 text-slate-500" /><span className="text-emerald-300">{nameOf(debt.toMemberId)}</span></div>
-                          <div className="flex flex-wrap items-center justify-between gap-2"><strong className="text-amber-400">{formatVND(debt.amount)}</strong><span className={`text-xs ${debt.isPaid ? 'text-emerald-400' : 'text-slate-400'}`}>{debt.isPaid ? 'Đã trả' : 'Chưa đánh dấu đã trả'}</span></div>
+                          <div className="flex flex-wrap items-center justify-between gap-2"><strong className="text-amber-400">{formatVND(debt.amount)}</strong><span className={`text-xs ${debt.isPaid ? 'text-emerald-400' : 'text-slate-400'}`}>{debt.isPaid ? 'Đã trả' : period.carriedDebts ? 'Đã chuyển sang kỳ sau' : 'Chưa đánh dấu đã trả'}</span></div>
                           {debt.isPaid && debt.paidAt && <p className="text-xs text-slate-500">Đánh dấu ngày {formatDate(debt.paidAt)}</p>}
                         </li>
                       ))}
