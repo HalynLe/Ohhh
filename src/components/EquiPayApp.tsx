@@ -26,11 +26,13 @@ import { DebtsTab } from '@/components/tabs/DebtsTab';
 import { PaymentTab } from '@/components/tabs/PaymentTab';
 import { AddExpenseModal } from '@/components/AddExpenseModal';
 import { MemberSettingsModal } from '@/components/MemberSettingsModal';
+import { PaymentHistory } from '@/components/PaymentHistory';
+import { PeriodSummary } from '@/components/PeriodSummary';
 import { SettlementHistory } from '@/components/SettlementHistory';
 import { CloudSyncModal } from '@/components/CloudSyncModal';
 import { UserManagerModal } from '@/components/UserManagerModal';
 import { LoginScreen } from '@/components/LoginScreen';
-import { calculatePairwiseDebts } from '@/lib/settlement-algorithm';
+import { calculateDebtsByMode, getRecordedPayments, recordDebtPayment, undoDebtPayment, formatVND } from '@/lib/settlement-algorithm';
 import { hashPassword, isPasswordHashed } from '@/lib/auth-crypto';
 
 export default function EquiPayApp({ view = 'dashboard' }: { view?: 'dashboard' | 'history' } = {}) {
@@ -262,6 +264,10 @@ export default function EquiPayApp({ view = 'dashboard' }: { view?: 'dashboard' 
   // Settlement Finalize
   const handleArchivePeriod = (title: string) => {
     const nextState = archiveCurrentPeriod(stateRef.current, title);
+    if (nextState === stateRef.current) {
+      showToast('Chưa có chi tiêu hoặc thanh toán mới để chốt kỳ.');
+      return;
+    }
     updateState(nextState);
     showToast(`Đã chốt sổ "${title}" và lưu vào lịch sử! 🚀`);
     setActiveTab('HOME');
@@ -269,13 +275,27 @@ export default function EquiPayApp({ view = 'dashboard' }: { view?: 'dashboard' 
 
   const handleTogglePaid = (debt: DebtPayment) => {
     const current = stateRef.current;
-    const paidDebts = { ...current.paidDebts };
-    if (paidDebts[debt.id]?.amount === debt.amount) {
-      delete paidDebts[debt.id];
-    } else {
-      paidDebts[debt.id] = { amount: debt.amount, paidAt: new Date().toISOString() };
+    const next = recordDebtPayment(current, debt);
+    if (next === current) {
+      showToast('Khoản nợ đã thay đổi hoặc đã trả. Vui lòng kiểm tra lại.');
+      return;
     }
-    updateState({ ...current, paidDebts });
+    updateState(next);
+    showToast('Đã ghi nhận thanh toán. Khoản chi mới sẽ được tính tiếp riêng.');
+  };
+
+  const handleUndoPayment = (paymentId: string) => {
+    const payment = getRecordedPayments(stateRef.current).find((item) => item.id === paymentId);
+    if (!payment) {
+      showToast('Khoản này đã được hoàn tác hoặc đã chuyển vào kỳ chốt sổ.');
+      return;
+    }
+    const nameOf = (id: string) => stateRef.current.members.find((member) => member.id === id)?.name || 'Thành viên';
+    if (!confirm(`Hoàn tác ${nameOf(payment.fromMemberId)} đã trả ${nameOf(payment.toMemberId)} ${formatVND(payment.amount)}? Công nợ sẽ được tính lại.`)) return;
+    const next = undoDebtPayment(stateRef.current, paymentId);
+    if (next === stateRef.current) return;
+    updateState(next);
+    showToast('Đã hoàn tác thanh toán và cập nhật lại công nợ.');
   };
 
   // Import Backup
@@ -285,7 +305,8 @@ export default function EquiPayApp({ view = 'dashboard' }: { view?: 'dashboard' 
   };
 
   const isAdmin = currentUser?.role === 'ADMIN' || isAdminUnlocked;
-  const debts = calculatePairwiseDebts(state.members, state.expenses);
+  const payments = getRecordedPayments(state);
+  const debts = calculateDebtsByMode(state.members, state.expenses, state.settlementMode, payments, state.carriedDebts);
 
   if (!isLoaded) {
     return (
@@ -337,7 +358,7 @@ export default function EquiPayApp({ view = 'dashboard' }: { view?: 'dashboard' 
       {/* Main Container Full Width */}
       <main className="flex-1 w-full max-w-[1700px] mx-auto px-4 sm:px-8 lg:px-12 py-5 sm:py-7 space-y-6">
         {view === 'history' ? (
-          <SettlementHistory history={state.history} members={state.members} />
+          <SettlementHistory history={state.history} members={state.members} payments={getRecordedPayments(state, true)} onUndoPayment={handleUndoPayment} />
         ) : (
           <>
             {/* 5 Tab Navigation Bar */}
@@ -348,9 +369,18 @@ export default function EquiPayApp({ view = 'dashboard' }: { view?: 'dashboard' 
               debtCount={debts.length}
             />
 
+            {(activeTab === 'DEBTS' || activeTab === 'PAYMENT') && (
+              <PeriodSummary state={state} />
+            )}
+            {(activeTab === 'DEBTS' || activeTab === 'PAYMENT') && (
+              <PaymentHistory payments={getRecordedPayments(state, true)} members={state.members} onUndoPayment={handleUndoPayment} />
+            )}
             {/* Tab Content Display */}
             {activeTab === 'HOME' && (
               <HomeTab
+                payments={payments}
+                carriedDebts={state.carriedDebts}
+                settlementMode={state.settlementMode}
                 members={state.members}
                 expenses={state.expenses}
                 currentUser={currentUser}
@@ -361,6 +391,9 @@ export default function EquiPayApp({ view = 'dashboard' }: { view?: 'dashboard' 
 
             {activeTab === 'OVERVIEW' && (
               <OverviewTab
+                payments={payments}
+                carriedDebts={state.carriedDebts}
+                settlementMode={state.settlementMode}
                 members={state.members}
                 expenses={state.expenses}
                 onEditMember={handleEditMemberClick}
@@ -380,6 +413,10 @@ export default function EquiPayApp({ view = 'dashboard' }: { view?: 'dashboard' 
 
             {activeTab === 'DEBTS' && (
               <DebtsTab
+                onMarkPaid={handleTogglePaid}
+                payments={payments}
+                carriedDebts={state.carriedDebts}
+                settlementMode={state.settlementMode}
                 members={state.members}
                 expenses={state.expenses}
                 currentUser={currentUser}
