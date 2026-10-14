@@ -1,6 +1,6 @@
 import { DEFAULT_ADMIN_USER, DEFAULT_MEMBERS } from './constants';
 import { Expense, GroupState, SettlementPeriod, UserAccount } from '@/types';
-import { calculateDebtsByMode } from './settlement-algorithm';
+import { getClosingDebts, getRecordedPayments } from './settlement-algorithm';
 
 const STORAGE_KEY = 'EQUIPAY_STATE_V3';
 const AUTH_KEY = 'EQUIPAY_CURRENT_USER_V3';
@@ -101,16 +101,19 @@ export function archiveCurrentPeriod(
   title: string
 ): GroupState {
   const totalAmount = state.expenses.reduce((sum, e) => sum + e.amount, 0);
-  const debts = calculateDebtsByMode(
-    state.members,
-    state.expenses,
-    state.settlementMode || 'PAIRWISE'
-  );
+  // A repeated click after closing must not create another empty period.
+  if (state.expenses.length === 0 && getRecordedPayments(state, true).length === 0) return state;
+  const periodId = `period_${crypto.randomUUID()}`;
+  const periodTitle = title.trim() || `Kỳ kết toán ${new Date().toLocaleDateString('vi-VN')}`;
+  const debts = getClosingDebts(state, periodId, periodTitle);
 
   const newPeriod: SettlementPeriod = {
     members: state.members.map((member) => ({ ...member })),
-    id: `period_${Date.now()}`,
-    title: title || `Kỳ kết toán ${new Date().toLocaleDateString('vi-VN')}`,
+    id: periodId,
+    title: periodTitle,
+    openingDebts: state.carriedDebts || [],
+    carriedDebts: debts,
+    payments: getRecordedPayments(state, true),
     startDate:
       state.expenses.length > 0
         ? state.expenses[state.expenses.length - 1].date
@@ -118,12 +121,7 @@ export function archiveCurrentPeriod(
     endDate: new Date().toISOString(),
     totalAmount,
     expenses: [...state.expenses],
-    debts: debts.map((debt) => {
-      const payment = state.paidDebts?.[debt.id];
-      return payment?.amount === debt.amount
-        ? { ...debt, isPaid: true, paidAt: payment.paidAt }
-        : debt;
-    }),
+    debts: [...getRecordedPayments(state), ...debts],
     status: 'COMPLETED',
     settledAt: new Date().toISOString(),
   };
@@ -131,7 +129,9 @@ export function archiveCurrentPeriod(
   const newState: GroupState = {
     ...state,
     expenses: [],
+    carriedDebts: debts,
     paidDebts: {},
+    payments: [],
     history: [newPeriod, ...state.history],
   };
 
