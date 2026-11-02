@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { SettlementPeriod, Member } from '@/types';
 import { formatVND } from '@/lib/settlement-algorithm';
+import { sortExpensesByDate } from '@/lib/expense-sort';
 import { X, History, Calendar, CheckCircle2, ChevronDown, ChevronUp, ArrowRight } from 'lucide-react';
 
 interface HistoryModalProps {
@@ -143,7 +144,7 @@ export const HistoryModal: React.FC<HistoryModalProps> = ({
                           Các khoản chi trong kỳ
                         </h5>
                         <div className="max-h-36 overflow-y-auto space-y-1 pr-1 text-xs">
-                          {period.expenses.map((exp) => (
+                          {sortExpensesByDate(period.expenses).map((exp) => (
                             <div
                               key={exp.id}
                               className="flex items-center justify-between py-1 border-b border-slate-900 text-slate-400"

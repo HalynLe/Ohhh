@@ -103,9 +103,9 @@ export async function GET(req: NextRequest) {
       message: 'Bảng equipay_group_data đã sẵn sàng nhưng chưa có bản ghi.',
       source,
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     return NextResponse.json(
-      { success: false, error: err.message || String(err), source },
+      { success: false, error: err instanceof Error ? err.message : String(err), source },
       { status: 500 }
     );
   }
@@ -208,9 +208,9 @@ export async function POST(req: NextRequest) {
       message: 'Đã lưu và đồng bộ thành công vào tất cả các bảng Supabase (members, user_accounts, expenses, group_data)!',
       source,
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     return NextResponse.json(
-      { success: false, error: err.message || String(err), source },
+      { success: false, error: err instanceof Error ? err.message : String(err), source },
       { status: 500 }
     );
   }

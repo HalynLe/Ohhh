@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { ArrowLeft, ArrowRight, CalendarDays, History, ChevronDown } from 'lucide-react';
 import { Member, SettlementPeriod, RecordedPayment } from '@/types';
 import { formatVND } from '@/lib/settlement-algorithm';
+import { sortExpensesByDate } from '@/lib/expense-sort';
 
 const dateOptions = { timeZone: 'Asia/Ho_Chi_Minh' };
 function formatDate(value: string) {
@@ -97,7 +98,7 @@ export function SettlementHistory({ history, members, payments = [], onUndoPayme
                     <h4 className="font-bold text-sm mb-3">Các khoản chi ({period.expenses.length})</h4>
                     {period.expenses.length === 0 && <p className="text-sm text-slate-500">Kỳ này không có khoản chi.</p>}
                     <ul className="space-y-2">
-                      {period.expenses.map((expense) => (
+                      {sortExpensesByDate(period.expenses).map((expense) => (
                         <li key={expense.id} className="rounded-xl bg-slate-950 p-3 text-sm">
                           <div className="flex justify-between gap-3"><span className="break-words min-w-0">{expense.title}</span><strong className="shrink-0">{formatVND(expense.amount)}</strong></div>
                           <p className="text-xs text-slate-400 mt-1">{nameOf(expense.payerId)} đã chi · {formatDate(expense.date)}</p>

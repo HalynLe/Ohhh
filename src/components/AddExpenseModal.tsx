@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Expense, ExpenseCategory, Member } from '@/types';
 import { CATEGORIES_CONFIG } from '@/lib/constants';
 import { formatVND } from '@/lib/settlement-algorithm';
@@ -27,48 +27,27 @@ const SUGGESTIONS = [
   'Điện / Nước / Wifi',
 ];
 
-export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
-  isOpen,
+export const AddExpenseModal: React.FC<AddExpenseModalProps> = (props) => {
+  if (!props.isOpen) return null;
+  return <ExpenseForm key={props.editExpense?.id ?? 'new'} {...props} />;
+};
+
+const ExpenseForm: React.FC<AddExpenseModalProps> = ({
   onClose,
   onSave,
   members,
   editExpense,
 }) => {
-  const [title, setTitle] = useState('');
-  const [amountStr, setAmountStr] = useState('');
-  const [payerId, setPayerId] = useState(members[0]?.id || '');
-  const [beneficiaryIds, setBeneficiaryIds] = useState<string[]>(members.map((m) => m.id));
-  const [category, setCategory] = useState<ExpenseCategory>('FOOD');
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
-  const [note, setNote] = useState('');
+  const [title, setTitle] = useState(editExpense?.title ?? '');
+  const [amountStr, setAmountStr] = useState(editExpense?.amount.toString() ?? '');
+  const [payerId, setPayerId] = useState(editExpense?.payerId ?? members[0]?.id ?? '');
+  const [beneficiaryIds, setBeneficiaryIds] = useState<string[]>(() =>
+    editExpense?.beneficiaryIds?.length ? editExpense.beneficiaryIds : members.map((m) => m.id)
+  );
+  const [category, setCategory] = useState<ExpenseCategory>(editExpense?.category ?? 'FOOD');
+  const [date, setDate] = useState(() => (editExpense?.date ?? new Date().toISOString()).split('T')[0]);
+  const [note, setNote] = useState(editExpense?.note ?? '');
   const [error, setError] = useState('');
-
-  useEffect(() => {
-    if (editExpense) {
-      setTitle(editExpense.title);
-      setAmountStr(editExpense.amount.toString());
-      setPayerId(editExpense.payerId);
-      setBeneficiaryIds(
-        editExpense.beneficiaryIds && editExpense.beneficiaryIds.length > 0
-          ? editExpense.beneficiaryIds
-          : members.map((m) => m.id)
-      );
-      setCategory(editExpense.category);
-      setDate(editExpense.date.split('T')[0]);
-      setNote(editExpense.note || '');
-    } else {
-      setTitle('');
-      setAmountStr('');
-      setPayerId(members[0]?.id || '');
-      setBeneficiaryIds(members.map((m) => m.id));
-      setCategory('FOOD');
-      setDate(new Date().toISOString().split('T')[0]);
-      setNote('');
-    }
-    setError('');
-  }, [editExpense, isOpen, members]);
-
-  if (!isOpen) return null;
 
   const currentAmount = parseFloat(amountStr.replace(/[^0-9]/g, '')) || 0;
   const splitCount = beneficiaryIds.length;

@@ -4,6 +4,7 @@ import React from 'react';
 import { CarriedDebt, RecordedPayment, Expense, Member, UserAccount } from '@/types';
 import { calculateBalances, calculateDebtsByMode, formatVND } from '@/lib/settlement-algorithm';
 import { CATEGORIES_CONFIG } from '@/lib/constants';
+import { sortExpensesByDate } from '@/lib/expense-sort';
 import {
   PlusCircle,
   QrCode,
@@ -223,7 +224,7 @@ export const HomeTab: React.FC<HomeTabProps> = ({
               Chưa có khoản chi nào. Bấm nút <strong>&quot;+ Thêm Chi Tiêu Mới&quot;</strong> để bắt đầu!
             </div>
           ) : (
-            expenses.slice(0, 3).map((exp) => {
+            sortExpensesByDate(expenses).slice(0, 3).map((exp) => {
               const payer = memberMap.get(exp.payerId);
               const catConfig = CATEGORIES_CONFIG[exp.category] || CATEGORIES_CONFIG.OTHER;
               return (

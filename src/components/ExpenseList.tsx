@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { Expense, ExpenseCategory, Member } from '@/types';
 import { CATEGORIES_CONFIG } from '@/lib/constants';
 import { formatVND } from '@/lib/settlement-algorithm';
+import { sortExpensesByDate } from '@/lib/expense-sort';
 import {
   Search,
   Filter,
@@ -36,7 +37,7 @@ export const ExpenseList: React.FC<ExpenseListProps> = ({
 
   const memberMap = new Map(members.map((m) => [m.id, m]));
 
-  const filteredExpenses = expenses.filter((exp) => {
+  const filteredExpenses = sortExpensesByDate(expenses).filter((exp) => {
     const matchSearch =
       exp.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (exp.note && exp.note.toLowerCase().includes(searchTerm.toLowerCase()));

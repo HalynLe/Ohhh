@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState } from 'react';
 import { GroupState } from '@/types';
 import {
   getSupabaseConfig,
@@ -34,32 +34,24 @@ interface CloudSyncModalProps {
   onImportState: (importedState: GroupState) => void;
 }
 
-export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
-  isOpen,
+export const CloudSyncModal: React.FC<CloudSyncModalProps> = (props) => {
+  if (!props.isOpen) return null;
+  return <CloudSyncForm {...props} />;
+};
+
+const CloudSyncForm: React.FC<CloudSyncModalProps> = ({
   onClose,
   state,
   onImportState,
 }) => {
-  const [url, setUrl] = useState('');
-  const [anonKey, setAnonKey] = useState('');
+  const [url, setUrl] = useState(() => getSupabaseConfig().url);
+  const [anonKey, setAnonKey] = useState(() => getSupabaseConfig().anonKey);
   const [isTesting, setIsTesting] = useState(false);
   const [statusMsg, setStatusMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-  const [isConnected, setIsConnected] = useState(false);
+  const [isConnected, setIsConnected] = useState(() => Boolean(getSupabaseClient()));
   const [copiedMagicLink, setCopiedMagicLink] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (isOpen) {
-      const config = getSupabaseConfig();
-      setUrl(config.url);
-      setAnonKey(config.anonKey);
-      setIsConnected(Boolean(getSupabaseClient()));
-      setStatusMsg(null);
-    }
-  }, [isOpen]);
-
-  if (!isOpen) return null;
 
   const handleSaveAndSync = async () => {
     setIsTesting(true);
@@ -93,9 +85,9 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
           text: `Lỗi ghi Supabase: ${result.error || 'Vui lòng chạy lại file supabase_schema.sql trên Supabase SQL Editor!'}`,
         });
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       setIsConnected(false);
-      setStatusMsg({ type: 'error', text: `Lỗi kết nối: ${err.message || err}` });
+      setStatusMsg({ type: 'error', text: `Lỗi kết nối: ${err instanceof Error ? err.message : String(err)}` });
     } finally {
       setIsTesting(false);
     }
@@ -120,8 +112,8 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
           text: `Chưa thể tải dữ liệu: ${result.error || 'Chưa có dữ liệu nào trên Supabase!'}`,
         });
       }
-    } catch (err: any) {
-      setStatusMsg({ type: 'error', text: `Lỗi: ${err.message || err}` });
+    } catch (err: unknown) {
+      setStatusMsg({ type: 'error', text: `Lỗi: ${err instanceof Error ? err.message : String(err)}` });
     } finally {
       setIsTesting(false);
     }

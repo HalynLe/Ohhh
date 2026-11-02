@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Member, UserAccount } from '@/types';
 import { VIETNAM_BANKS } from '@/lib/constants';
 import { X, Check, Building, CreditCard, User, Shield, Key, Lock } from 'lucide-react';
@@ -17,8 +17,12 @@ interface MemberSettingsModalProps {
 
 const AVATAR_OPTIONS = ['👨‍💼', '🏄‍♂️', '👩‍🎨', '🚀', '🐱', '🐼', '🦁', '🥑', '⚡', '☕', '🌟', '🎯'];
 
-export const MemberSettingsModal: React.FC<MemberSettingsModalProps> = ({
-  isOpen,
+export const MemberSettingsModal: React.FC<MemberSettingsModalProps> = (props) => {
+  if (!props.isOpen) return null;
+  return <MemberSettingsForm key={`${props.currentUser?.id ?? ''}:${props.selectedMemberId ?? ''}`} {...props} />;
+};
+
+const MemberSettingsForm: React.FC<MemberSettingsModalProps> = ({
   onClose,
   members,
   onSaveMembers,
@@ -40,20 +44,6 @@ export const MemberSettingsModal: React.FC<MemberSettingsModalProps> = ({
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [permissionAlert, setPermissionAlert] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (isOpen) {
-      setLocalMembers(members);
-      if (isAdmin) {
-        setActiveTabId(selectedMemberId || members[0]?.id || 'mem_1');
-      } else {
-        setActiveTabId(myMemberId || members[0]?.id || 'mem_1');
-      }
-      setPermissionAlert(null);
-    }
-  }, [isOpen, selectedMemberId, members, isAdmin, myMemberId]);
-
-  if (!isOpen) return null;
-
   const currentMember = localMembers.find((m) => m.id === activeTabId) || localMembers[0];
 
   // Kiểm tra quyền chỉnh sửa
@@ -69,7 +59,7 @@ export const MemberSettingsModal: React.FC<MemberSettingsModalProps> = ({
     setActiveTabId(memberId);
   };
 
-  const handleUpdateCurrentMember = (field: keyof Member, value: any) => {
+  const handleUpdateCurrentMember = <K extends keyof Member,>(field: K, value: Member[K]) => {
     if (!canEditCurrentTab) return;
     setLocalMembers((prev) =>
       prev.map((m) => (m.id === activeTabId ? { ...m, [field]: value } : m))
